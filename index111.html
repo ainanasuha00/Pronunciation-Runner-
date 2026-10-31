@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ESL Pronunciation Obstacle Runner 🚗💨</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <!-- Google Fonts: Inter & Fredoka for playful ESL design -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Fredoka', 'Inter', sans-serif;
+      background-color: #f0f9ff;
+      user-select: none;
+    }
+    .game-canvas-container {
+      position: relative;
+      width: 100%;
+      height: 260px;
+      overflow: hidden;
+      border-radius: 1.25rem;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15);
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    /* Pulsing animation for active mic */
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+      70% { transform: scale(1.1); box-shadow: 0 0 0 18px rgba(239, 68, 68, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+    .mic-active {
+      animation: pulse-ring 1.5s infinite;
+      background-color: #ef4444 !important;
+    }
+    /* Animated Waveform Bars */
+    .wave-bar {
+      width: 6px;
+      height: 24px;
+      background-color: #3b82f6;
+      border-radius: 9999px;
+      animation: wave 1s ease-in-out infinite alternate;
+    }
+    .wave-bar:nth-child(2) { animation-delay: 0.2s; }
+    .wave-bar:nth-child(3) { animation-delay: 0.4s; }
+    .wave-bar:nth-child(4) { animation-delay: 0.1s; }
+    .wave-bar:nth-child(5) { animation-delay: 0.3s; }
+    @keyframes wave {
+      0% { height: 8px; }
+      100% { height: 36px; }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-between p-3 sm:p-6 text-slate-800">
+
+  <!-- Header Navigation & Stats -->
+  <header class="w-full max-w-3xl flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-4 rounded-2xl shadow-md border border-sky-100 mb-3">
+    <div class="flex items-center space-x-3">
+      <div class="w-12 h-12 rounded-xl bg-sky-500 text-white flex items-center justify-center text-2xl shadow-lg">
+        🚗
+      </div>
+      <div>
+        <h1 class="text-xl sm:text-2xl font-bold text-sky-950 tracking-wide">Pronunciation Runner</h1>
+        <p class="text-xs text-sky-600 font-medium">ESL Town & Daily Life Edition</p>
+      </div>
+    </div>
+
+    <!-- HUD Stats -->
+    <div class="flex items-center space-x-4 w-full sm:w-auto justify-between sm:justify-end">
+      <!-- Level Display -->
+      <div class="bg-sky-50 px-4 py-2 rounded-xl border border-sky-200 text-center">
+        <span class="text-xs font-semibold uppercase text-sky-600 tracking-wider block">Level</span>
+        <span id="level-text" class="text-lg font-extrabold text-sky-900">1 / 10</span>
+      </div>
+      <!-- Score Display -->
+      <div class="bg-amber-50 px-5 py-2 rounded-xl border border-amber-200 text-center">
+        <span class="text-xs font-semibold uppercase text-amber-600 tracking-wider block">Score</span>
+        <span id="score-text" class="text-lg font-extrabold text-amber-600">0 pts</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Game Container -->
+  <main class="w-full max-w-3xl flex flex-col gap-4">
+
+    <!-- Overall Game Progress Bar -->
+    <div class="w-full bg-slate-200 h-4 rounded-full overflow-hidden p-0.5 shadow-inner">
+      <div id="progress-bar-fill" class="bg-gradient-to-r from-sky-400 to-emerald-400 h-full rounded-full transition-all duration-500" style="width: 10%;"></div>
+    </div>
+
+    <!-- Game Visual Stage Canvas -->
+    <div class="game-canvas-container bg-gradient-to-b from-sky-300 via-sky-200 to-amber-100">
+      <canvas id="gameCanvas"></canvas>
+      
+      <!-- Overlay Toast Banner inside Canvas -->
+      <div id="canvas-overlay-msg" class="hidden absolute inset-0 bg-black/30 backdrop-blur-[2px] flex flex-col items-center justify-center p-4 transition-all">
+        <div id="overlay-card" class="bg-white rounded-2xl p-6 shadow-2xl text-center transform transition-all duration-300 scale-90 max-w-sm">
+          <div id="overlay-icon" class="text-5xl mb-2">🎉</div>
+          <h2 id="overlay-title" class="text-2xl font-extrabold text-slate-800 mb-1">Great Job!</h2>
+          <p id="overlay-subtitle" class="text-sm font-semibold text-slate-600 mb-4">+10 Points Earned</p>
+          <button id="overlay-action-btn" class="hidden px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-lg transition transform active:scale-95">
+            Continue
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sentence & Voice Challenge Card -->
+    <div class="bg-white p-5 sm:p-6 rounded-2xl shadow-xl border border-slate-100 flex flex-col items-center text-center space-y-4">
+      
+      <!-- Sentence Target Header -->
+      <div class="flex items-center justify-between w-full border-b border-slate-100 pb-2">
+        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Read Aloud This Sentence:</span>
+        <!-- Native TTS Listen Button -->
+        <button id="btn-listen-tts" class="flex items-center space-x-1.5 px-3 py-1 bg-sky-100 hover:bg-sky-200 text-sky-700 text-xs font-bold rounded-lg transition">
+          <i class="fa-solid fa-volume-high"></i>
+          <span>Listen</span>
+        </button>
+      </div>
+
+      <!-- Main Sentence Text -->
+      <div class="py-2 px-4 rounded-xl bg-sky-50/60 w-full border border-sky-100 min-h-[70px] flex items-center justify-center">
+        <p id="sentence-display" class="text-2xl sm:text-3xl font-extrabold text-slate-800 leading-snug tracking-wide">
+          I like to sing.
+        </p>
+      </div>
+
+      <!-- Live Recognition Status / Feedback Box -->
+      <div id="speech-feedback-card" class="w-full bg-slate-50 rounded-xl p-3 border border-slate-200 transition-all text-sm">
+        <div id="speech-status-idle" class="text-slate-500 flex items-center justify-center space-x-2">
+          <i class="fa-solid fa-microphone text-sky-500"></i>
+          <span>Press the microphone button below and read the sentence.</span>
+        </div>
+
+        <!-- Active Listening Animation -->
+        <div id="speech-status-listening" class="hidden flex flex-col items-center space-y-2 py-1">
+          <div class="flex items-center space-x-1">
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+          </div>
+          <span class="text-red-500 font-bold tracking-wide animate-pulse">Listening... Speak clearly now!</span>
+        </div>
+
+        <!-- Result Text & Similarity Badge -->
+        <div id="speech-status-result" class="hidden flex flex-col items-center space-y-1">
+          <div class="text-xs font-medium text-slate-400">We heard:</div>
+          <div id="transcribed-text" class="text-base font-bold text-slate-700 italic">"..."</div>
+          <div id="similarity-badge" class="inline-block px-3 py-0.5 rounded-full text-xs font-extrabold bg-emerald-100 text-emerald-700 mt-1">
+            95% Match
+          </div>
+        </div>
+      </div>
+
+      <!-- Action & Interaction Controls -->
+      <div class="flex flex-wrap items-center justify-center gap-3 w-full pt-1">
+        
+        <!-- Push-To-Talk Microphone Button -->
+        <button id="btn-mic" class="px-8 py-4 bg-sky-500 hover:bg-sky-600 text-white font-extrabold text-lg rounded-2xl shadow-lg transition transform active:scale-95 flex items-center space-x-3">
+          <i class="fa-solid fa-microphone text-xl"></i>
+          <span id="mic-btn-text">Tap to Speak</span>
+        </button>
+
+        <!-- Retry Button (Shown when user fails or wants to try again) -->
+        <button id="btn-retry" class="hidden px-6 py-4 bg-amber-500 hover:bg-amber-600 text-white font-bold text-base rounded-2xl shadow-lg transition transform active:scale-95 flex items-center space-x-2">
+          <i class="fa-solid fa-rotate-right"></i>
+          <span>Retry</span>
+        </button>
+
+        <!-- NEXT LEVEL BUTTON (MANDATORY REQUIREMENT: Must be clicked manually to progress) -->
+        <button id="btn-next-level" class="hidden px-8 py-4 bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-lg rounded-2xl shadow-xl transition transform active:scale-95 flex items-center space-x-3 animate-bounce">
+          <span>Next Level</span>
+          <i class="fa-solid fa-arrow-right"></i>
+        </button>
+      </div>
+
+      <!-- Voice Permission Warning & Bypass Fallback (For browsers lacking mic API) -->
+      <div id="browser-warning" class="hidden text-xs text-amber-600 bg-amber-50 p-2.5 rounded-lg border border-amber-200 w-full text-center">
+        <i class="fa-solid fa-circle-exclamation mr-1"></i>
+        <span>Web Speech API is not supported in this browser.</span>
+        <button id="btn-demo-pass" class="underline font-bold ml-2 text-sky-700">Simulate Correct Voice</button>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Complete Game Modal Screen -->
+  <div id="complete-modal" class="hidden fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl text-center space-y-6 transform transition-all">
+      <div class="text-6xl animate-bounce">🏆</div>
+      <div>
+        <h2 class="text-3xl font-extrabold text-slate-800">Game Completed!</h2>
+        <p class="text-slate-500 text-sm mt-1">You navigated through all 10 obstacles!</p>
+      </div>
+
+      <div class="bg-sky-50 rounded-2xl p-4 border border-sky-100 flex justify-around items-center">
+        <div>
+          <span class="text-xs text-sky-600 font-bold uppercase tracking-wider block">Final Score</span>
+          <span id="final-score" class="text-3xl font-black text-sky-900">100 / 100</span>
+        </div>
+        <div>
+          <span class="text-xs text-sky-600 font-bold uppercase tracking-wider block">Stars</span>
+          <div class="text-2xl text-amber-400">⭐⭐⭐</div>
+        </div>
+      </div>
+
+      <button id="btn-restart-game" class="w-full py-4 bg-sky-500 hover:bg-sky-600 text-white font-extrabold text-lg rounded-2xl shadow-xl transition transform active:scale-95">
+        Play Again 🔄
+      </button>
+    </div>
+  </div>
+
+  <!-- Audio Effects Generator using Web Audio API -->
+  <script>
+    class SoundFX {
+      constructor() {
+        this.ctx = null;
+      }
+      init() {
+        if (!this.ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) this.ctx = new AudioCtx();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+      playSuccess() {
+        this.init();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+        notes.forEach((freq, idx) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+          gain.gain.setValueAtTime(0.2, now + idx * 0.08);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.08 + 0.25);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now + idx * 0.08);
+          osc.stop(now + idx * 0.08 + 0.25);
+        });
+      }
+      playCrash() {
+        this.init();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(180, now);
+        osc.frequency.exponentialRampToValueAtTime(40, now + 0.4);
+        gain.gain.setValueAtTime(0.4, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.4);
+      }
+      playBeep() {
+        this.init();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, now);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.15);
+      }
+    }
+    const soundFX = new SoundFX();
+  </script>
+
+  <!-- Core Game Script Logic -->
+  <script>
+    // --- 1. GAME DATA & SENTENCES ARRAY ---
+    const SENTENCES = [
+      "I like to sing.",
+      "I enjoy reading books.",
+      "I love swimming in the pool.",
+      "I can ride a bike.",
+      "I like playing football with my friends.",
+      "I enjoy drawing pictures.",
+      "I like flying my kite.",
+      "I love watching cartoons after school.",
+      "I play with my toys.",
+      "I enjoy dancing to my favourite songs."
+    ];
+
+    // Obstacle icons/types for visual variety across levels
+    const OBSTACLES = [
+      { name: "Traffic Cones", type: "cones" },
+      { name: "Construction Barrier", type: "barrier" },
+      { name: "Water Barrel", type: "barrel" },
+      { name: "Stop Sign", type: "stopsign" },
+      { name: "Wooden Fence", type: "fence" },
+      { name: "Rock Pile", type: "rock" },
+      { name: "Caution Tape", type: "tape" },
+      { name: "Giant Tire", type: "tire" },
+      { name: "Mud Pit", type: "mud" },
+      { name: "Final Finish Gate", type: "gate" }
+    ];
+
+    // --- 2. STATE VARIABLES ---
+    let currentLevel = 1; // 1-indexed to 10
+    let totalScore = 0;
+    let isListening = false;
+    let speechStartTime = 0;
+    let recognition = null;
+    let isLevelPassed = false;
+
+    // --- 3. DOM ELEMENTS ---
+    const levelText = document.getElementById('level-text');
+    const scoreText = document.getElementById('score-text');
+    const progressBarFill = document.getElementById('progress-bar-fill');
+    const sentenceDisplay = document.getElementById('sentence-display');
+    const btnMic = document.getElementById('btn-mic');
+    const micBtnText = document.getElementById('mic-btn-text');
+    const btnRetry = document.getElementById('btn-retry');
+    const btnNextLevel = document.getElementById('btn-next-level');
+    const btnListenTTS = document.getElementById('btn-listen-tts');
+    const browserWarning = document.getElementById('browser-warning');
+    const btnDemoPass = document.getElementById('btn-demo-pass');
+
+    const speechStatusIdle = document.getElementById('speech-status-idle');
+    const speechStatusListening = document.getElementById('speech-status-listening');
+    const speechStatusResult = document.getElementById('speech-status-result');
+    const transcribedText = document.getElementById('transcribed-text');
+    const similarityBadge = document.getElementById('similarity-badge');
+
+    const canvasOverlayMsg = document.getElementById('canvas-overlay-msg');
+    const overlayCard = document.getElementById('overlay-card');
+    const overlayIcon = document.getElementById('overlay-icon');
+    const overlayTitle = document.getElementById('overlay-title');
+    const overlaySubtitle = document.getElementById('overlay-subtitle');
+
+    const completeModal = document.getElementById('complete-modal');
+    const finalScoreDisplay = document.getElementById('final-score');
+    const btnRestartGame = document.getElementById('btn-restart-game');
+
+    // --- 4. CANVAS ANIMATION ENGINE ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Animation variables
+    let animationFrameId = null;
+    let roadOffset = 0;
+    let carState = 'DRIVING_IN'; // 'DRIVING_IN', 'AT_OBSTACLE', 'JUMPING', 'CRASHED'
+    let carX = -80;
+    let carY = 175;
+    let carTargetX = 220;
+    let carYOffset = 0;
+    let carRotation = 0;
+    let obstacleX = 360;
+    let crashEffectTimer = 0;
+    let smokeParticles = [];
+
+    function resizeCanvas() {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // Render loop
+    function animate() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Draw Sky & City Background Parallax
+      drawCityBackground();
+
+      // Draw Road & Ground
+      drawRoad();
+
+      // Render Obstacle
+      drawObstacle(obstacleX, 170, currentLevel - 1);
+
+      // Update & Render Smoke/Sparkles
+      updateParticles();
+
+      // Update Car position logic
+      updateCarPhysics();
+
+      // Draw Car
+      drawCar(carX, carY + carYOffset, carRotation);
+
+      animationFrameId = requestAnimationFrame(animate);
+    }
+
+    function drawCityBackground() {
+      // Sky Gradient
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      skyGrad.addColorStop(0, '#7dd3fc');
+      skyGrad.addColorStop(0.7, '#bae6fd');
+      skyGrad.addColorStop(1, '#fef08a');
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Sun
+      ctx.fillStyle = '#fde047';
+      ctx.beginPath();
+      ctx.arc(canvas.width - 60, 45, 26, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Background Buildings
+      ctx.fillStyle = '#cbd5e1';
+      const buildingWidths = [50, 70, 40, 60, 80, 55, 65];
+      let bx = 0;
+      let bIdx = 0;
+      while (bx < canvas.width) {
+        const bw = buildingWidths[bIdx % buildingWidths.length];
+        const bh = 70 + (bIdx % 4) * 20;
+        ctx.fillStyle = (bIdx % 2 === 0) ? '#94a3b8' : '#cbd5e1';
+        ctx.fillRect(bx, 150 - bh, bw, bh);
+
+        // Simple windows
+        ctx.fillStyle = '#fef08a';
+        for (let wy = 150 - bh + 10; wy < 140; wy += 20) {
+          for (let wx = bx + 8; wx < bx + bw - 10; wx += 14) {
+            ctx.fillRect(wx, wy, 8, 10);
+          }
+        }
+        bx += bw + 8;
+        bIdx++;
+      }
+    }
+
+    function drawRoad() {
+      // Ground / Grass
+      ctx.fillStyle = '#4ade80';
+      ctx.fillRect(0, 150, canvas.width, 30);
+
+      // Asphalt Road
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(0, 175, canvas.width, 85);
+
+      // Road Curb
+      ctx.fillStyle = '#ef4444';
+      ctx.fillRect(0, 175, canvas.width, 4);
+
+      // Moving Dashed Center Line
+      if (carState === 'DRIVING_IN' || carState === 'JUMPING') {
+        roadOffset = (roadOffset + 5) % 40;
+      }
+      ctx.strokeStyle = '#fde047';
+      ctx.lineWidth = 4;
+      ctx.setLineDash([20, 20]);
+      ctx.lineDashOffset = -roadOffset;
+      ctx.beginPath();
+      ctx.moveTo(0, 215);
+      ctx.lineTo(canvas.width, 215);
+      ctx.stroke();
+      ctx.setLineDash([]); // reset line dash
+    }
+
+    function drawCar(x, y, rotation) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(rotation * Math.PI / 180);
+
+      // Car Body Shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.2)';
+      ctx.beginPath();
+      ctx.ellipse(35, 30, 35, 8, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Main Car Body (Bright Red/Orange Sports Cartoon Car)
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath();
+      ctx.roundRect(0, 5, 70, 24, [8]);
+      ctx.fill();
+
+      // Cabin Roof
+      ctx.fillStyle = '#dc2626';
+      ctx.beginPath();
+      ctx.roundRect(15, -12, 38, 20, [8, 8, 0, 0]);
+      ctx.fill();
+
+      // Windows
+      ctx.fillStyle = '#38bdf8';
+      ctx.beginPath();
+      ctx.roundRect(20, -9, 13, 12, [3]);
+      ctx.roundRect(36, -9, 14, 12, [3]);
+      ctx.fill();
+
+      // Headlight
+      ctx.fillStyle = '#fef08a';
+      ctx.beginPath();
+      ctx.arc(66, 12, 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Wheels
+      const wheelBounce = (carState === 'DRIVING_IN' || carState === 'JUMPING') ? Math.sin(Date.now() / 50) * 2 : 0;
+      
+      ctx.fillStyle = '#1e293b';
+      ctx.beginPath();
+      ctx.arc(16, 28, 9, 0, Math.PI * 2);
+      ctx.arc(54, 28, 9, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Wheel Rims
+      ctx.fillStyle = '#94a3b8';
+      ctx.beginPath();
+      ctx.arc(16, 28, 4, 0, Math.PI * 2);
+      ctx.arc(54, 28, 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    function drawObstacle(x, y, levelIndex) {
+      ctx.save();
+      ctx.translate(x, y);
+
+      // Switch rendering by level obstacle type
+      const obstacleType = OBSTACLES[levelIndex % OBSTACLES.length].type;
+
+      if (obstacleType === 'cones') {
+        // Traffic Cones
+        ctx.fillStyle = '#f97316';
+        ctx.beginPath();
+        ctx.moveTo(10, 25); ctx.lineTo(20, 0); ctx.lineTo(30, 25);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(14, 10, 12, 4);
+      } else if (obstacleType === 'barrier') {
+        // Construction Barrier
+        ctx.fillStyle = '#f59e0b';
+        ctx.fillRect(5, 5, 30, 20);
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(5, 12, 30, 6);
+      } else if (obstacleType === 'barrel') {
+        // Water Barrel
+        ctx.fillStyle = '#0284c7';
+        ctx.beginPath();
+        ctx.roundRect(8, 2, 24, 26, [4]);
+        ctx.fill();
+        ctx.fillStyle = '#e0f2fe';
+        ctx.fillRect(8, 10, 24, 4);
+      } else {
+        // General Cartoon Caution Block / Rock
+        ctx.fillStyle = '#78716c';
+        ctx.beginPath();
+        ctx.arc(20, 16, 14, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#e7e5e4';
+        ctx.fillText('🚧', 10, 20);
+      }
+
+      ctx.restore();
+    }
+
+    function updateCarPhysics() {
+      if (carState === 'DRIVING_IN') {
+        // Car drives from left to obstacle
+        if (carX < carTargetX) {
+          carX += 4;
+          carYOffset = Math.sin(carX / 10) * 2; // subtle driving vibration
+        } else {
+          carState = 'AT_OBSTACLE';
+          carYOffset = 0;
+        }
+      } else if (carState === 'JUMPING') {
+        // Car jumps over obstacle gracefully to next screen edge
+        carX += 6;
+        // Parabolic jump arc
+        const jumpProgress = (carX - carTargetX) / 250;
+        carYOffset = -Math.sin(jumpProgress * Math.PI) * 70;
+        carRotation = -Math.sin(jumpProgress * Math.PI) * 20;
+
+        if (carX > canvas.width + 80) {
+          // Completed jump transition
+          carState = 'WAITING_FOR_NEXT';
+        }
+      } else if (carState === 'CRASHED') {
+        // Crash vibration & tilt
+        carRotation = -25;
+        carYOffset = Math.sin(Date.now() / 30) * 3;
+        
+        // Spawn smoke particles
+        if (Math.random() < 0.3) {
+          smokeParticles.push({
+            x: carX + 50,
+            y: carY + carYOffset + 10,
+            vx: (Math.random() - 0.5) * 2,
+            vy: -Math.random() * 2 - 1,
+            size: Math.random() * 10 + 5,
+            alpha: 1
+          });
+        }
+      }
+    }
+
+    function updateParticles() {
+      for (let i = smokeParticles.length - 1; i >= 0; i--) {
+        const p = smokeParticles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.alpha -= 0.02;
+        p.size += 0.2;
+
+        ctx.fillStyle = `rgba(100, 116, 139, ${Math.max(0, p.alpha)})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (p.alpha <= 0) smokeParticles.splice(i, 1);
+      }
+    }
+
+    function resetCarPosition() {
+      carX = -80;
+      carTargetX = canvas.width * 0.45;
+      obstacleX = carTargetX + 70;
+      carState = 'DRIVING_IN';
+      carRotation = 0;
+      carYOffset = 0;
+      smokeParticles = [];
+    }
+
+    // --- 5. SPEECH RECOGNITION SYSTEM & NOISE REDUCTION ---
+    function initSpeechRecognition() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        browserWarning.classList.remove('hidden');
+        return;
+      }
+
+      recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = 'en-US';
+
+      recognition.onstart = () => {
+        isListening = true;
+        speechStartTime = Date.now();
+        soundFX.playBeep();
+        
+        // UI Updates
+        btnMic.classList.add('mic-active');
+        micBtnText.innerText = 'Listening...';
+        speechStatusIdle.classList.add('hidden');
+        speechStatusResult.classList.add('hidden');
+        speechStatusListening.classList.remove('hidden');
+      };
+
+      recognition.onend = () => {
+        isListening = false;
+        btnMic.classList.remove('mic-active');
+        micBtnText.innerText = 'Tap to Speak';
+        speechStatusListening.classList.add('hidden');
+      };
+
+      recognition.onresult = (event) => {
+        const speechDuration = (Date.now() - speechStartTime) / 1000;
+        const transcript = event.results[0][0].transcript.trim();
+
+        // NOISE REDUCTION & DURATION CHECK
+        // Requirement: Ignore background sounds < 1s or speech that is too short.
+        if (speechDuration < 1.0 || transcript.length < 3) {
+          showFeedbackToast('Please speak clearly and try again.', 'amber');
+          speechStatusIdle.classList.remove('hidden');
+          return;
+        }
+
+        evaluatePronunciation(transcript);
+      };
+
+      recognition.onerror = (event) => {
+        console.warn('Speech Recognition Error:', event.error);
+        isListening = false;
+        btnMic.classList.remove('mic-active');
+        micBtnText.innerText = 'Tap to Speak';
+        speechStatusListening.classList.add('hidden');
+        
+        if (event.error === 'no-speech') {
+          showFeedbackToast('Please speak clearly and try again.', 'amber');
+        } else {
+          showFeedbackToast('Microphone error. Try again!', 'red');
+        }
+      };
+    }
+
+    // Request getUserMedia with Noise Suppression constraints
+    async function requestMicPermissions() {
+      try {
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          await navigator.mediaDevices.getUserMedia({
+            audio: {
+              noiseSuppression: true,
+              echoCancellation: true,
+              autoGainControl: true
+            }
+          });
+        }
+      } catch (err) {
+        console.warn('Audio constraints request note:', err);
+      }
+    }
+
+    // --- 6. PRONUNCIATION SIMILARITY ALGORITHM ---
+    // String similarity calculation (Levenshtein + Word Match Ratio)
+    function calculateSimilarity(target, spoken) {
+      const clean = (str) => str.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+      const s1 = clean(target);
+      const s2 = clean(spoken);
+
+      if (s1 === s2) return 100;
+      if (!s1 || !s2) return 0;
+
+      // Word-level matching
+      const words1 = s1.split(/\s+/);
+      const words2 = s2.split(/\s+/);
+      let matchedWords = 0;
+      
+      words2.forEach(w => {
+        if (words1.includes(w)) matchedWords++;
+      });
+
+      const wordScore = matchedWords / words1.length;
+
+      // Levenshtein character distance
+      const track = Array(s2.length + 1).fill(null).map(() => Array(s1.length + 1).fill(null));
+      for (let i = 0; i <= s1.length; i++) track[0][i] = i;
+      for (let j = 0; j <= s2.length; j++) track[j][0] = j;
+
+      for (let j = 1; j <= s2.length; j++) {
+        for (let i = 1; i <= s1.length; i++) {
+          const indicator = s1[i - 1] === s2[j - 1] ? 0 : 1;
+          track[j][i] = Math.min(
+            track[j][i - 1] + 1,
+            track[j - 1][i] + 1,
+            track[j - 1][i - 1] + indicator
+          );
+        }
+      }
+
+      const distance = track[s2.length][s1.length];
+      const maxLen = Math.max(s1.length, s2.length);
+      const charScore = 1 - (distance / maxLen);
+
+      // Weighted combination (60% Word Match, 40% Char Levenshtein)
+      const finalPercentage = Math.round((wordScore * 0.6 + charScore * 0.4) * 100);
+      return Math.min(100, Math.max(0, finalPercentage));
+    }
+
+    // Evaluate speech result against target sentence
+    function evaluatePronunciation(spokenText) {
+      const targetSentence = SENTENCES[currentLevel - 1];
+      const similarity = calculateSimilarity(targetSentence, spokenText);
+
+      // Display transcribed text & match score badge
+      speechStatusResult.classList.remove('hidden');
+      transcribedText.innerText = `"${spokenText}"`;
+      similarityBadge.innerText = `${similarity}% Match`;
+
+      // PRONUNCIATION TOLERANCE: Accept if similarity >= 75%
+      if (similarity >= 75) {
+        // --- SUCCESS CASE ---
+        similarityBadge.className = 'inline-block px-3 py-0.5 rounded-full text-xs font-extrabold bg-emerald-100 text-emerald-700 mt-1';
+        handleCorrectAnswer();
+      } else {
+        // --- FAIL / RETRY CASE ---
+        similarityBadge.className = 'inline-block px-3 py-0.5 rounded-full text-xs font-extrabold bg-red-100 text-red-700 mt-1';
+        handleIncorrectAnswer();
+      }
+    }
+
+    // --- 7. GAME PROGRESSION & INTERACTION HANDLERS ---
+    function handleCorrectAnswer() {
+      if (isLevelPassed) return; // avoid duplicate score additions
+      isLevelPassed = true;
+
+      // Update Scoring (+10 points)
+      totalScore += 10;
+      scoreText.innerText = `${totalScore} pts`;
+
+      // Play Sound Effects & Car Jump Animation
+      soundFX.playSuccess();
+      carState = 'JUMPING';
+
+      // UI Changes
+      btnMic.classList.add('hidden');
+      btnRetry.classList.add('hidden');
+      btnNextLevel.classList.remove('hidden'); // SHOW "NEXT LEVEL" BUTTON
+
+      // Canvas Toast Feedback
+      showCanvasOverlay('🎉 Correct!', '+10 points earned! Click "Next Level" to continue.', 'emerald');
+    }
+
+    function handleIncorrectAnswer() {
+      // Play Crash Sound & Crash Animation
+      soundFX.playCrash();
+      carState = 'CRASHED';
+
+      // UI Changes
+      btnMic.classList.add('hidden');
+      btnRetry.classList.remove('hidden'); // SHOW RETRY BUTTON
+
+      // Canvas Toast Feedback
+      showCanvasOverlay('🚗💥 Try Again!', 'The car crashed! Speak clearly and try again.', 'red');
+    }
+
+    function showFeedbackToast(msg, color) {
+      speechStatusIdle.classList.add('hidden');
+      speechStatusResult.classList.remove('hidden');
+      transcribedText.innerText = msg;
+      similarityBadge.innerText = color === 'amber' ? 'Too Short' : 'Try Again';
+      similarityBadge.className = `inline-block px-3 py-0.5 rounded-full text-xs font-extrabold bg-${color}-100 text-${color}-700 mt-1`;
+    }
+
+    function showCanvasOverlay(title, subtitle, colorTheme) {
+      overlayTitle.innerText = title;
+      overlaySubtitle.innerText = subtitle;
+      overlayIcon.innerText = colorTheme === 'emerald' ? '🌟' : '💥';
+
+      if (colorTheme === 'emerald') {
+        overlayTitle.className = 'text-2xl font-extrabold text-emerald-600 mb-1';
+      } else {
+        overlayTitle.className = 'text-2xl font-extrabold text-red-600 mb-1';
+      }
+
+      canvasOverlayMsg.classList.remove('hidden');
+      setTimeout(() => {
+        canvasOverlayMsg.classList.add('hidden');
+      }, 2200);
+    }
+
+    // Load Level State
+    function loadLevel(levelNum) {
+      currentLevel = levelNum;
+      isLevelPassed = false;
+
+      // Update HUD
+      levelText.innerText = `${currentLevel} / ${SENTENCES.length}`;
+      progressBarFill.style.width = `${(currentLevel / SENTENCES.length) * 100}%`;
+
+      // Set Target Sentence
+      sentenceDisplay.innerText = SENTENCES[currentLevel - 1];
+
+      // Reset Control Buttons
+      btnMic.classList.remove('hidden');
+      btnRetry.classList.add('hidden');
+      btnNextLevel.classList.add('hidden'); // HIDE Next Level button until answered correctly
+
+      // Reset Speech Status UI
+      speechStatusIdle.classList.remove('hidden');
+      speechStatusListening.classList.add('hidden');
+      speechStatusResult.classList.add('hidden');
+
+      // Reset Canvas Animation
+      resetCarPosition();
+    }
+
+    // --- 8. EVENT LISTENERS ---
+    
+    // Microphone Push-to-Talk Click
+    btnMic.addEventListener('click', async () => {
+      soundFX.init();
+      await requestMicPermissions();
+
+      if (isListening && recognition) {
+        recognition.stop();
+      } else if (recognition) {
+        try {
+          recognition.start();
+        } catch (e) {
+          console.warn('Recognition start exception:', e);
+        }
+      } else {
+        // Fallback simulation if Speech API is unavailable
+        evaluatePronunciation(SENTENCES[currentLevel - 1]);
+      }
+    });
+
+    // Retry Button Click
+    btnRetry.addEventListener('click', () => {
+      soundFX.playBeep();
+      btnRetry.classList.add('hidden');
+      btnMic.classList.remove('hidden');
+      speechStatusResult.classList.add('hidden');
+      speechStatusIdle.classList.remove('hidden');
+      resetCarPosition();
+    });
+
+    // MANUAL NEXT LEVEL BUTTON CLICK
+    btnNextLevel.addEventListener('click', () => {
+      soundFX.playBeep();
+      if (currentLevel < SENTENCES.length) {
+        loadLevel(currentLevel + 1);
+      } else {
+        // Game Finished
+        showGameCompleteModal();
+      }
+    });
+
+    // Native Browser TTS Listen Button
+    btnListenTTS.addEventListener('click', () => {
+      soundFX.init();
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(SENTENCES[currentLevel - 1]);
+        utterance.lang = 'en-US';
+        utterance.rate = 0.9;
+        window.speechSynthesis.speak(utterance);
+      }
+    });
+
+    // Demo Bypass Simulation
+    btnDemoPass.addEventListener('click', () => {
+      evaluatePronunciation(SENTENCES[currentLevel - 1]);
+    });
+
+    // Restart Game
+    btnRestartGame.addEventListener('click', () => {
+      totalScore = 0;
+      scoreText.innerText = '0 pts';
+      completeModal.classList.add('hidden');
+      loadLevel(1);
+    });
+
+    function showGameCompleteModal() {
+      finalScoreDisplay.innerText = `${totalScore} / ${SENTENCES.length * 10}`;
+      completeModal.classList.remove('hidden');
+      soundFX.playSuccess();
+    }
+
+    // --- 9. INITIALIZATION ON LOAD ---
+    window.onload = () => {
+      initSpeechRecognition();
+      loadLevel(1);
+      animate(); // Start canvas animation loop
+    };
+  </script>
+</body>
+</html>
